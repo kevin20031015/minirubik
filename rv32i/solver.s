@@ -1,9 +1,10 @@
 .data
 fact:   .word 720, 120, 24, 6, 2, 1, 1
-input:  .string "12345672111113"    # 測試用：改成 "12345672111113" 應印出 0 243
+input:  .string "54721631111111"    # 測試用：改成 "12345672111113" 應印出 0 243
 state:  .zero 14
 .align 2
 frames: .zero 192
+msg_invalid: .string " INVALID"
 msg_pass: .string " PASS"
 msg_fail: .string " FAIL"
 move_names:
@@ -35,6 +36,25 @@ loop:
     addi t1, t1, 1
     addi t3, t3, 1
     blt t3, t4, loop
+# ===== 第 1.5 塊：檢查輸入 =====
+    la t0, state
+    addi t3, zero, 0
+    addi t4, zero, 7
+    addi t5, zero, 7
+chk_p:
+    lbu t2, 0(t0)
+    bge t2, t4, invalid
+    addi t0, t0, 1
+    addi t3, t3, 1
+    blt t3, t5, chk_p
+    addi t4, zero, 3
+    addi t5, zero, 14
+chk_o:
+    lbu t2, 0(t0)
+    bge t2, t4, invalid
+    addi t0, t0, 1
+    addi t3, t3, 1
+    blt t3, t5, chk_o
 
     # ===== 第 2 塊：位置編號 p（放在 s0）=====
     la s1, state
@@ -84,6 +104,11 @@ ori_loop:
     bge t1, t2, have_h
     addi s5, t2, 0
 have_h:
+    la s7, move_face
+    la s8, p_move_rows
+    la s9, p_distance
+    la s10, o_move_rows
+    la s11, o_distance
 # ===== 第 4b 塊：IDA* 搜尋 =====
 new_bound:
     la s4, frames
@@ -105,16 +130,16 @@ try_move:
     beq t1, t0, back
     addi t0, t1, 1
     sw t0, 8(s4)
-    la t0, move_face
-    add t2, t0, t1
+    add t2, s7, t1
+    
     lbu t2, 0(t2)
     lw t3, 12(s4)
-    add t3, t0, t3
+    add t3, s7, t3
     lbu t3, 0(t3)
     beq t2, t3, try_move
-    la t0, p_move_rows
+    
     slli t2, t1, 2
-    add t0, t0, t2
+    add t0, s8, t2
     lw t0, 0(t0)
     lw t2, 0(s4)
     slli t2, t2, 1
@@ -122,20 +147,20 @@ try_move:
     lhu t4, 0(t0)
     sub t5, s5, s6
     addi t5, t5, -1
-    la t0, p_distance
-    add t0, t0, t4
+    add t0, s9, t4
+    
     lbu t2, 0(t0)
     bgt t2, t5, try_move
-    la t0, o_move_rows
+    
     slli t2, t1, 2
-    add t0, t0, t2
+    add t0, s10, t2
     lw t0, 0(t0)
     lw t2, 4(s4)
     slli t2, t2, 1
     add t0, t0, t2
     lhu t6, 0(t0)
-    la t0, o_distance
-    add t0, t0, t6
+    add t0, s11, t6
+    
     lbu t2, 0(t0)
     bgt t2, t5, try_move
     addi s4, s4, 16
@@ -203,6 +228,11 @@ check_done:
     bne t5, zero, bad
     bne t6, zero, bad
         la a0, msg_pass
+    li a7, 4
+    ecall
+    j exit
+invalid:
+    la a0, msg_invalid
     li a7, 4
     ecall
     j exit
