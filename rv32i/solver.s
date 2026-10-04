@@ -24,7 +24,7 @@ fact:   .word 720, 120, 24, 6, 2, 1, 1
 input:  .string "54721631111111"    
 state:  .zero 14
 seen:   .zero 7
-.align 2
+.align 4
 frames: .zero 192
 msg_invalid: .string " INVALID"
 msg_pass: .string " PASS"
