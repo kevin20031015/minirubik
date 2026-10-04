@@ -94,21 +94,20 @@ ori_loop:
     addi t0, t0, 1
     blt t0, t4, ori_loop
 # ===== 第 4a 塊：h = max(p_distance[p], o_distance[o])，放在 s5 =====
-    la t0, p_distance
-    add t0, t0, s0
-    lbu t1, 0(t0)
-    la t0, o_distance
-    add t0, t0, s3
-    lbu t2, 0(t0)
-    addi s5, t1, 0
-    bge t1, t2, have_h
-    addi s5, t2, 0
-have_h:
     la s7, move_face
     la s8, p_move_rows
     la s9, p_distance
     la s10, o_move_rows
     la s11, o_distance
+    
+    add t0, s9, s0
+    lbu t1, 0(t0)
+    add t0, s11, s3
+    lbu t2, 0(t0)
+    addi s5, t1, 0
+    bge t1, t2, have_h
+    addi s5, t2, 0
+have_h:
 # ===== 第 4b 塊：IDA* 搜尋 =====
 new_bound:
     la s4, frames
@@ -206,16 +205,16 @@ check_loop:
      add a0, a0, t2
      addi a7, zero, 4
      ecall
-     la t0, p_move_rows
+     
      slli t2, t1, 2
-     add t0, t0, t2
+     add t0, s8, t2
      lw t0, 0(t0)
      slli t2, t5, 1
      add t0, t0, t2
      lhu t5, 0(t0)
-     la t0, o_move_rows
+     
      slli t2, t1, 2
-     add t0, t0, t2
+     add t0, s10, t2
      lw t0, 0(t0)
      slli t2, t6, 1
      add t0, t0, t2
