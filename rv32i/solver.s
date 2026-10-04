@@ -99,7 +99,7 @@ ori_loop:
     la s9, p_distance
     la s10, o_move_rows
     la s11, o_distance
-    
+    addi s2, zero, 9
     add t0, s9, s0
     lbu t1, 0(t0)
     add t0, s11, s3
@@ -116,21 +116,17 @@ new_bound:
     sw s3, 4(s4)
     addi t0, zero, 0
     sw t0, 8(s4)
-    addi t0, zero, 9
-    sw t0, 12(s4)
-
+    sw s2, 12(s4)
     bne s0, zero, try_move
     bne s3, zero, try_move
     j found
 try_move:
     beq s6, s5, back
     lw t1, 8(s4)
-    addi t0, zero, 9
-    beq t1, t0, back
+    beq t1, s2, back
     addi t0, t1, 1
     sw t0, 8(s4)
     add t2, s7, t1
-    
     lbu t2, 0(t2)
     lw t3, 12(s4)
     add t3, s7, t3
