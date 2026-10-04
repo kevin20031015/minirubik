@@ -1,7 +1,29 @@
+
+# ===== 暫存器表 =====
+# s0  = p（位置編號，0～5039）
+# s1  = state 的地址
+# s2  = 第 2 塊：指向 fact 的指標；第 4 塊之後：常數 9
+# s3  = o（方向編號，0～728）
+# s4  = 目前這一層 frame 的地址
+# s5  = bound（這一輪的深度上限，從 h 開始，每輪 +1）
+# s6  = depth（目前在第幾層）
+# s7  = move_face 的地址
+# s8  = p_move_rows 的地址
+# s9  = p_distance 的地址
+# s10 = o_move_rows 的地址
+# s11 = o_distance 的地址
+#
+# 搜尋中（try_move）的 t 暫存器：
+# t1 = m（這次試的轉法 0～8）   t4 = np（轉完的新 p）
+# t5 = 還剩幾步（bound-depth-1） t6 = no（轉完的新 o）
+#
+# frames 每層 16 bytes：0(p)  4(o)  8(next)  12(last)
+
 .data
 fact:   .word 720, 120, 24, 6, 2, 1, 1
-input:  .string "54721631111111"    # 測試用：改成 "12345672111113" 應印出 0 243
+input:  .string "54721631111111"    
 state:  .zero 14
+seen:   .zero 7
 .align 2
 frames: .zero 192
 msg_invalid: .string " INVALID"
@@ -41,20 +63,38 @@ loop:
     addi t3, zero, 0
     addi t4, zero, 7
     addi t5, zero, 7
+    la t6, seen
 chk_p:
     lbu t2, 0(t0)
-    bge t2, t4, invalid
-    addi t0, t0, 1
+    bge t2, t4, invalid   # 範圍       
+    add t1, t6, t2        # t1 = seen 的地址 + state[i]     
+    lbu t2, 0(t1)         # t2 = seen[state[i]]       
+    bne t2, zero, invalid   # 已經劃過 → 重複     
+    addi t2, zero, 1
+    sb t2, 0(t1)                # 劃掉
+    addi t0, t0, 1               
     addi t3, t3, 1
     blt t3, t5, chk_p
     addi t4, zero, 3
     addi t5, zero, 14
+
+    addi t4, zero, 3
+    addi t5, zero, 14
+    addi t1, zero, 0             # sum = 0
 chk_o:
     lbu t2, 0(t0)
-    bge t2, t4, invalid
+    bge t2, t4, invalid          # 範圍
+    add t1, t1, t2             # sum += state[i]
     addi t0, t0, 1
     addi t3, t3, 1
     blt t3, t5, chk_o
+mod3:
+    blt t1, t4, mod3_done        # sum < 3 → 減完了
+    addi t1, t1, -3             # sum -= 3
+    j mod3
+mod3_done:
+    bne t1, zero, invalid        # 餘數不是 0 → 不合法
+
 
     # ===== 第 2 塊：位置編號 p（放在 s0）=====
     la s1, state
@@ -112,7 +152,7 @@ have_h:
 new_bound:
     la s4, frames
     addi s6, zero, 0
-    sw s0, 0(s4)
+    sw s0, 0(s4) 
     sw s3, 4(s4)
     addi t0, zero, 0
     sw t0, 8(s4)
