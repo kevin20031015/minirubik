@@ -77,9 +77,6 @@ chk_p:
     blt t3, t5, chk_p
     addi t4, zero, 3
     addi t5, zero, 14
-
-    addi t4, zero, 3
-    addi t5, zero, 14
     addi t1, zero, 0             # sum = 0
 chk_o:
     lbu t2, 0(t0)
