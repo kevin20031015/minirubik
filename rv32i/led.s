@@ -26,15 +26,14 @@ cube_p:
     .byte 0,1,2,3,4,5,6,7
 cube_o:
     .byte 0,0,0,0,0,0,0,0
-sticker_off:  # 每格左上角離 BASE 幾個 byte
-    .word 36, 52, 456, 472  # U
-    .word 980, 996, 1400, 1416 # L
-    .word 1016, 1032, 1436, 1452 # F
-    .word 1052, 1068, 1472, 1488 # R
-    .word 1088, 1104, 1508, 1524 # B
-    .word 1996, 2012, 2416, 2432 # D
-sticker_face: # 每格現在是哪一面的顏色（0～5）
+sticker_off:                       # 每格左上角離 BASE 幾個 byte（init 用 WIDTH 算好填進來）
+    .zero 96
+sticker_face:                      # 每格現在是哪一面的顏色（0～5）
     .byte 0,0,0,0, 1,1,1,1, 2,2,2,2, 3,3,3,3, 4,4,4,4, 5,5,5,5
+sticker_x:                         # 每格左上角的 x
+    .byte 9,13,9,13, 0,4,0,4, 9,13,9,13, 18,22,18,22, 27,31,27,31, 9,13,9,13
+sticker_y:                         # 每格左上角的 y（跟 sticker_x 差 24）
+    .byte 0,0,3,3, 7,7,10,10, 7,7,10,10, 7,7,10,10, 7,7,10,10, 14,14,17,17
 .align 4
 face_rgb:   # U 白、L 橘、F 綠、R 紅、B 藍、D 黃
     .word 0x00FFFFFF, 0x00FF8000, 0x0000FF00, 0x00FF0000, 0x000000FF, 0x00FFFF00
@@ -112,11 +111,19 @@ t_ok:
     addi a5, a5, 1
     blt  a5, a6, calc_loop
 
+    li   a7, LED_MATRIX_0_WIDTH
+    addi a2, zero, 35
+    blt a7, a2, no_draw   # WIDTH < 35 → 不畫，跳到 no_draw
+    li   a7, LED_MATRIX_0_HEIGHT
+    addi a2, zero, 20
+    blt a7, a2, no_draw  # HEIGHT < 20 → 不畫，跳到 no_draw
+
     li   a0, LED_MATRIX_0_BASE # a0 = LED 的開頭
+    li   a6, LED_MATRIX_0_WIDTH
+    slli a6, a6, 2
     la   a4, sticker_off   # a4 指著 sticker_off[0]
     la   a1, sticker_face # a1 指著 sticker_face[0]
-    addi a5, zero, 0  # a5 = i = 0
-    addi a6, zero, 24  # a6 = 24（總共 24 格）
+    addi a5, zero, 24
 draw_loop:
     lw   a3, 0(a4)    # 第 1 步：a3 = 這格的位移
     add  a3, a0, a3    # 第 2 步：a3 = BASE + 位移
@@ -124,24 +131,26 @@ draw_loop:
     slli a2, a2, 2    # a2 = 面 × 4（.word 要 ×4）
     la   a7, face_rgb
     add  a7, a7, a2   # a7 = face_rgb[面] 的地址
-    lw   a2, 0(a7)  # a2 = 顏色
-    sw   a2, 0(a3)   # 第 5 步：畫 4 × 3
-    sw   a2, 4(a3)
-    sw   a2, 8(a3)
-    sw   a2, 12(a3)
-    sw   a2, 140(a3)
-    sw   a2, 144(a3)
-    sw   a2, 148(a3)
-    sw   a2, 152(a3)
-    sw   a2, 280(a3)
-    sw   a2, 284(a3)
-    sw   a2, 288(a3)
-    sw   a2, 292(a3)
+    lw  a2, 0(a7)  # a2 = 顏色
+    sw  a2, 0(a3)   # 第 5 步：畫 4 × 3
+    sw  a2, 4(a3)
+    sw  a2, 8(a3)
+    sw  a2, 12(a3)
+    add a3, a3, a6
+    sw  a2, 0(a3)               # 第 2 列
+    sw  a2, 4(a3)
+    sw  a2, 8(a3)
+    sw  a2, 12(a3)
+    add a3, a3, a6
+    sw  a2, 0(a3)               # 第 3 列
+    sw  a2, 4(a3)
+    sw  a2, 8(a3)
+    sw  a2, 12(a3)
     addi a4, a4, 4    # 第 6 步：sticker_off 下一格（.word，+4）
     addi a1, a1, 1   # sticker_face 下一格（.byte，+1）
-    addi a5, a5, 1    # i + 1
-    blt  a5, a6, draw_loop  # 還沒到 24 → 回去畫下一格
-
+    addi a5, a5, -1   # 還剩幾格 − 1
+    bne  a5, zero, draw_loop  # 還沒到 0 → 回去畫下一格
+no_draw:
     li   a0, 300000     # 空轉 30 萬圈，讓畫面停一下
 delay:
     addi a0, a0, -1
@@ -165,5 +174,28 @@ init_loop:
     addi a3, a3, 1
     addi a5, a5, 1
     blt  a5, a6, init_loop
+    # 用 WIDTH 算 24 格的位移，填進 sticker_off 
+    li   a0, LED_MATRIX_0_WIDTH
+    slli a0, a0, 2    # a0 = 一列幾個 byte（WIDTH × 4）
+    la   a1, sticker_x   # a1 指著 sticker_x[0]（y 在 24(a1)）
+    la   a3, sticker_off  # a3 指著 sticker_off[0]
+    addi a5, zero, 24  # a5 = 還剩幾格
+off_loop:
+    lbu  a4, 24(a1)  # a4 = y
+    addi a6, zero, 0    # a6 = 位移，從 0 開始
+mul_loop:
+    beq  a4, zero, mul_done   # y 次加完了
+    add a6, a6, a0    # 位移 + 一列
+    addi a4, a4, -1    # y − 1
+    j    mul_loop
+mul_done:
+    lbu  a4, 0(a1)   # a4 = x
+    slli a4, a4, 2  
+    add a6, a6, a4 
+    sw a6, 0(a3)   # 存進 sticker_off[i]
+    addi a1, a1, 1   # 下一格的 x（.byte，+1）
+    addi a3, a3, 4  # 下一格的 sticker_off（.word，4）
+    addi a5, a5, -1
+    bne  a5, zero, off_loop
     ret
     
