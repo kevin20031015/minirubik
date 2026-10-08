@@ -1,0 +1,7 @@
+processor: RV32_ISS
+states run: 2644
+not 11 moves + PASS: 0
+max iret: 21716565 (54721631111111)
+min iret: 4809389 (15746322313112)
+mean iret: 7058580
+wall-clock: 1,615 s

@@ -1,0 +1,206 @@
+(base) $bin = "D:\CA\HW1-1\tool\xpack-riscv-none-elf-gcc-15.2.0-1\bin"
+(base) $ripes = "D:\claude\ripe\tools\Ripes\Ripes.exe"
+(base) # ===== solver.s =====
+(base) powershell -ExecutionPolicy Bypass -File run_tests.ps1
+ok     solved          12345671111111  =>  0 PASS
+ok     short scramble  25314672313211  =>  1 R' PASS
+ok     distance 11     21345671111111  =>  11 R B' D2 R' B R' B' R D2 R B PASS
+ok     worst case      54721631111111  =>  11 B2 R' B R' D' B R2 B R B D' PASS
+ok     repeated digit  11111111111111  =>   INVALID
+ok     bad twist sum   12345671111112  =>   INVALID
+all 6 tests passed on RV32_ISS
+(base) $src = [IO.File]::ReadAllText("$PWD\solver.s")
+(base) foreach ($in in "21345671111111", "54721631111111") {
+    $s = $src -replace 'input:\s*\.string\s*"[^"]*"', "input:  .string `"$in`""
+    [IO.File]::WriteAllText("$PWD\tmp_solver.s", $s, (New-Object Text.UTF8Encoding $false))
+    cmd /c copy /b tmp_solver.s+tables.s full.s > $null
+    & $ripes --mode cli --src full.s -t asm --proc RV32_ISS --iret --output my_out.txt | Out-Host
+    "== solver.s $in =="; Get-Content my_out.txt
+}
+11 R B' D2 R' B R' B' R D2 R B PASS
+Program exited with code: 0
+== solver.s 21345671111111 ==
+===== instructions retired
+7943077
+11 B2 R' B R' D' B R2 B R B D' PASS
+Program exited with code: 0
+== solver.s 54721631111111 ==
+===== instructions retired
+21716565
+(base) $g = ($src + "`n" + [IO.File]::ReadAllText("$PWD\tables.s")) -replace '\.align\b', '.balign'
+(base) [IO.File]::WriteAllText("$PWD\size_check.s", $g, (New-Object Text.UTF8Encoding $false))
+(base) & "$bin\riscv-none-elf-as.exe" -march=rv32i -mabi=ilp32 size_check.s -o size_check.o
+
+(base) & "$bin\riscv-none-elf-ld.exe" -m elf32lriscv --no-relax -Ttext=0 -Tdata=0x10000000 -e main size_check.o -o size_check.elf 2>$null
+
+(base) & "$bin\riscv-none-elf-size.exe" -A size_check.elf | Select-String "text|data|bss"
+
+.text                  816           0
+.data               110008   268435456
+
+(base) # ===== GCC =====
+(base) & "$bin\riscv-none-elf-gcc.exe" -O2 -march=rv32i -mabi=ilp32 -S final.c -o gcc.s
+
+(base) python gcc2ripes.py gcc.s tables.s gfull.s "$bin\riscv-none-elf-"
+
+(base) $gs = [IO.File]::ReadAllText("$PWD\gfull.s")
+(base) foreach ($in in "21345671111111", "54721631111111") {
+    $s = $gs -replace '"21345671111111"', "`"$in`""
+    [IO.File]::WriteAllText("$PWD\gfull2.s", $s, (New-Object Text.UTF8Encoding $false))
+    & $ripes --mode cli --src gfull2.s -t asm --proc RV32_ISS --iret --output g_out.txt | Out-Host
+    "== GCC $in =="; Get-Content g_out.txt
+}
+11 R B' D2 R' B R' B' R D2 R B PASS
+Program exited with code: 0
+== GCC 21345671111111 ==
+===== instructions retired
+9351658
+11 B2 R' B R' D' B R2 B R B D' PASS
+Program exited with code: 0
+== GCC 54721631111111 ==
+===== instructions retired
+25569162
+(base) $steps = [ordered]@{ "原本"="3f3489b"; "優化1"="b5bd7bf"; "優化2"="39e21d9"; "優化3"="5a1c6c3"; "加1.5塊bc"="534517c"; "對齊"="f70037f"; "刪重複"="HEAD" }
+(base) foreach ($name in $steps.Keys) {
+    $c = $steps[$name]
+    cmd /c "git show ${c}:rv32i/solver.s > h_solver.s"
+    cmd /c "git show ${c}:rv32i/tables.s > h_tables.s"
+    $hs = [IO.File]::ReadAllText("$PWD\h_solver.s")
+    $ht = [IO.File]::ReadAllText("$PWD\h_tables.s")
+    foreach ($in in "21345671111111", "54721631111111") {
+        $s = $hs -replace 'input:\s*\.string\s*"[^"]*"', "input:  .string `"$in`""
+        [IO.File]::WriteAllText("$PWD\h_full.s", $s + "`n" + $ht, (New-Object Text.UTF8Encoding $false))
+        & $ripes --mode cli --src h_full.s -t asm --proc RV32_ISS --iret --output h_out.txt | Out-Host
+        "== $name ($c) $in =="; Get-Content h_out.txt
+    }
+    $g = ($hs + "`n" + $ht) -replace '\.align\b', '.balign'
+    [IO.File]::WriteAllText("$PWD\h_size.s", $g, (New-Object Text.UTF8Encoding $false))
+    & "$bin\riscv-none-elf-as.exe" -march=rv32i -mabi=ilp32 h_size.s -o h_size.o
+    & "$bin\riscv-none-elf-ld.exe" -m elf32lriscv --no-relax -Ttext=0 -Tdata=0x10000000 -e main h_size.o -o h_size.elf 2>$null
+    "== $name ($c) size =="; & "$bin\riscv-none-elf-size.exe" -A h_size.elf | Select-String "text"
+}
+
+11 R B' D2 R' B R' B' R D2 R B PASS
+Program exited with code: 0
+== 原本 (3f3489b) 21345671111111 ==
+===== instructions retired
+10262062
+11 B2 R' B R' D' B R2 B R B D' PASS
+Program exited with code: 0
+== 原本 (3f3489b) 54721631111111 ==
+===== instructions retired
+28056856
+
+== 原本 (3f3489b) size ==
+
+.text                  712           0
+
+11 R B' D2 R' B R' B' R D2 R B PASS
+Program exited with code: 0
+== 優化1 (b5bd7bf) 21345671111111 ==
+===== instructions retired
+8332997
+11 B2 R' B R' D' B R2 B R B D' PASS
+Program exited with code: 0
+== 優化1 (b5bd7bf) 54721631111111 ==
+===== instructions retired
+22782859
+
+== 優化1 (b5bd7bf) size ==
+.text                  800           0
+
+11 R B' D2 R' B R' B' R D2 R B PASS
+Program exited with code: 0
+== 優化2 (39e21d9) 21345671111111 ==
+===== instructions retired
+8332949
+11 B2 R' B R' D' B R2 B R B D' PASS
+Program exited with code: 0
+== 優化2 (39e21d9) 54721631111111 ==
+===== instructions retired
+22782811
+
+== 優化2 (39e21d9) size ==
+.text                  768           0
+
+11 R B' D2 R' B R' B' R D2 R B PASS
+Program exited with code: 0
+== 優化3 (5a1c6c3) 21345671111111 ==
+===== instructions retired
+7943030
+11 B2 R' B R' D' B R2 B R B D' PASS
+Program exited with code: 0
+== 優化3 (5a1c6c3) 54721631111111 ==
+===== instructions retired
+21716518
+
+== 優化3 (5a1c6c3) size ==
+.text                  764           0
+
+11 R B' D2 R' B R' B' R D2 R B PASS
+Program exited with code: 0
+== 加1.5塊bc (534517c) 21345671111111 ==
+===== instructions retired
+7943079
+11 B2 R' B R' D' B R2 B R B D' PASS
+Program exited with code: 0
+== 加1.5塊bc (534517c) 54721631111111 ==
+===== instructions retired
+21716567
+
+== 加1.5塊bc (534517c) size ==
+.text                  824           0
+
+11 R B' D2 R' B R' B' R D2 R B PASS
+Program exited with code: 0
+== 對齊 (f70037f) 21345671111111 ==
+===== instructions retired
+7943079
+11 B2 R' B R' D' B R2 B R B D' PASS
+Program exited with code: 0
+== 對齊 (f70037f) 54721631111111 ==
+===== instructions retired
+21716567
+
+== 對齊 (f70037f) size ==
+.text                  824           0
+
+11 R B' D2 R' B R' B' R D2 R B PASS
+Program exited with code: 0
+== 刪重複 (HEAD) 21345671111111 ==
+===== instructions retired
+7943077
+11 B2 R' B R' D' B R2 B R B D' PASS
+Program exited with code: 0
+== 刪重複 (HEAD) 54721631111111 ==
+===== instructions retired
+21716565
+
+== 刪重複 (HEAD) size ==
+.text                  816           0
+
+(base) python gcc2ripes.py gcc.s tables.s gfull.s "$bin\riscv-none-elf-" | Out-Host
+wrote gfull.s
+main code size: 860 bytes (215 instructions), not counting _start
+(base) powershell -ExecutionPolicy Bypass -File run_tests.ps1 -proc RV32_5S | Out-Host
+ok     solved          12345671111111  =>  0 PASS
+ok     short scramble  25314672313211  =>  1 R' PASS
+ok     distance 11     21345671111111  =>  11 R B' D2 R' B R' B' R D2 R B PASS
+ok     worst case      54721631111111  =>  11 B2 R' B R' D' B R2 B R B D' PASS
+ok     repeated digit  11111111111111  =>   INVALID
+ok     bad twist sum   12345671111112  =>   INVALID
+all 6 tests passed on RV32_5S
+(base) & $tcc verify.c -o verify.exe
+
+(base) Measure-Command { .\verify.exe > verify_out2.txt } | Select-Object TotalSeconds
+
+TotalSeconds
+------------
+ 626.6610306
+
+(base) Select-String "PASSED|FAILED" verify_out2.txt
+
+verify_out2.txt:33:ALL CHECKS PASSED
+
+(base) & $tcc -v | Out-Host
+tcc version 0.9.27 (x86_64 Windows)
